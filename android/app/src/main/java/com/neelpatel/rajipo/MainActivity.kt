@@ -1,4 +1,4 @@
-package com.rajipobeginshere
+package com.neelpatel.rajipo
 
 import android.os.Build
 import android.os.Bundle

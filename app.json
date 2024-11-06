@@ -2,6 +2,23 @@
   "expo": {
     "name": "RajipoBeginsHere",
     "slug": "RajipoBeginsHere",
-    "version": "1.0.0"
+    "version": "1.0.2",
+    "extra": {
+      "eas": {
+        "projectId": "c9a31df3-032a-485b-8e18-5880b3fd5f58"
+      }
+    },
+    "icon": "./assets/logo1.1.jpg",
+    "android": {
+      "package": "com.neelpatel.rajipo",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/logo1.1.jpg",
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.neelpatel.rajipo",
+      "supportsTablet": true
+    }
   }
 }

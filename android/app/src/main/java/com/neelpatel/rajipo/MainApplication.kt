@@ -1,4 +1,4 @@
-package com.rajipobeginshere
+package com.neelpatel.rajipo
 
 import android.app.Application
 import android.content.res.Configuration

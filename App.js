@@ -16,6 +16,8 @@ import LeaderboardScreen from './screens/PostAuthScreens/Leaderboard';
 import colors from './globalVariables/colors';
 import AddContent from './screens/PostAuthScreens/AddContent';
 import Settings from './screens/PostAuthScreens/Settings';
+import TeamStandingsScreen from './screens/PostAuthScreens/TeamStandings';
+import ResetPassword from './screens/PreAuthScreens/Reset';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -121,7 +123,7 @@ function MainStack() {
       />
       <Tab.Screen 
         name="Team Standings" 
-        component={LeaderboardScreen}
+        component={TeamStandingsScreen}
         options={{ 
           tabBarShowLabel: true,
           headerShown: false,
@@ -153,6 +155,7 @@ const AuthStack = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Login" component={Login} />
+      <Stack.Screen name="Reset" component={ResetPassword} />
     </Stack.Navigator>
   );
 };

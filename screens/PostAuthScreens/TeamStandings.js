@@ -14,69 +14,89 @@ import { database, auth } from '../../config/firebase';
 import colors from '../../globalVariables/colors';
 import { TabView, TabBar } from 'react-native-tab-view';
 
-const LeaderboardScreen = () => {
-  const [leaderboardData, setLeaderboardData] = useState([]);
+const TeamStandingsScreen = () => {
+  const [teams, setTeams] = useState([]); // Holds the list of team names and their users
+  const [leaderboardData, setLeaderboardData] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [index, setIndex] = useState(0);
-  const [routes] = useState([
-    { key: 'Mahant', title: 'Mahant' },
-    { key: 'Pramukh', title: 'Pramukh' },
-    { key: 'Yogi', title: 'Yogi' },
-  ]);
+  const [index, setIndex] = useState(0); // For TabView
+  const [routes, setRoutes] = useState([]); // For dynamically creating tabs
 
-  const fetchUserData = async () => {
+  // Fetch users and group them by their teams
+  const fetchTeamData = async () => {
     try {
       setIsLoading(true);
-      // Fetch all user documents from the 'userData' collection
       const userCollection = collection(database, 'userData');
       const userDocsSnap = await getDocs(userCollection);
 
-      const users = [];
+      const teams = {}; // Object to hold teams and their users
+
       userDocsSnap.forEach(doc => {
-        users.push({ 
+        const { firstName, team } = doc.data(); // Fetch user's firstName and team
+        const user = {
           uid: doc.id, 
-          firstName: doc.data().firstName, 
-          tier: doc.data().tier
-        });
-      });
-
-      // Fetch leaderboard data for each user
-      const leaderboardDataPromises = users.map(async (user) => {
-        const leaderboardDocRef = doc(database, 'leaderboard', user.uid);
-        const leaderboardDocSnap = await getDoc(leaderboardDocRef);
-
-        if (leaderboardDocSnap.exists()) {
-          const { kirtans = 0, shloks = 0 } = leaderboardDocSnap.data();
-          return { ...user, kirtans, shloks };
-        } else {
-          return { ...user, kirtans: 0, shloks: 0 };
+          firstName, 
+          team
+        };
+        // Add users to the correct team
+        if (!teams[team]) {
+          teams[team] = []; // Initialize the team if not already present
         }
+        teams[team].push(user); // Add user to the team
       });
 
-      const leaderboardData = await Promise.all(leaderboardDataPromises);
-
-      // Sort the leaderboard data by the total number of memorized items (shloks + kirtans)
-      leaderboardData.sort((a, b) => (b.shloks + b.kirtans) - (a.shloks + a.kirtans));
-
-      setLeaderboardData(leaderboardData);
+      // Set team routes dynamically for the tabs
+      const routes = Object.keys(teams).map((teamName, idx) => ({
+        key: teamName, title: teamName
+      }));
+      setRoutes(routes);
+      setTeams(teams); // Store the grouped team data
     } catch (error) {
-      console.error('Error fetching leaderboard data:', error);
+      console.error('Error fetching team data:', error);
     } finally {
       setIsLoading(false);
       setRefreshing(false);
     }
   };
 
-  useEffect(() => {
-    fetchUserData();
-  }, []);
+  // Fetch leaderboard data for each user, including shloks, kirtans, pbps, ahnicks, and swamini vatos
+  const fetchLeaderboardData = async (users) => {
+    try {
+      const leaderboardDataPromises = users.map(async (user) => {
+        const leaderboardDocRef = doc(database, 'leaderboard', user.uid);
+        const leaderboardDocSnap = await getDoc(leaderboardDocRef);
+
+        if (leaderboardDocSnap.exists()) {
+          const { 
+            kirtans = 0, 
+            shloks = 0, 
+            pbps = 0, 
+            ahnicks = 0, 
+            swaminiVatos = 0 
+          } = leaderboardDocSnap.data();
+          return { ...user, kirtans, shloks, pbps, ahnicks, swaminiVatos };
+        } else {
+          return { ...user, kirtans: 0, shloks: 0, pbps: 0, ahnicks: 0, swaminiVatos: 0 };
+        }
+      });
+
+      return await Promise.all(leaderboardDataPromises);
+    } catch (error) {
+      console.error('Error fetching leaderboard data:', error);
+      return [];
+    }
+  };
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchUserData();
+    fetchTeamData();
   };
 
+  useEffect(() => {
+    fetchTeamData();
+  }, []);
+
+  // Render each team member's card with stats
   const renderItem = ({ item }) => {
     const isCurrentUser = item.uid === auth.currentUser.uid;
 
@@ -90,6 +110,9 @@ const LeaderboardScreen = () => {
             <View style={styles.stats}>
               <Text style={styles.statText}>Shloks: {item.shloks}</Text>
               <Text style={styles.statText}>Kirtans: {item.kirtans}</Text>
+              <Text style={styles.statText}>PBPs: {item.pbps}</Text>
+              <Text style={styles.statText}>Ahniks: {item.ahnicks}</Text>
+              <Text style={styles.statText}>Swamini Vatos: {item.swaminiVatos}</Text>
             </View>
           </View>
         </Card.Content>
@@ -97,12 +120,21 @@ const LeaderboardScreen = () => {
     );
   };
 
+  // Render the team view in each tab
   const renderScene = ({ route }) => {
-    const filteredData = leaderboardData.filter(user => user.tier === route.key);
+    const teamUsers = teams[route.key] || [];
+
+    // Fetch leaderboard data for the selected team
+    if (!leaderboardData[route.key]) {
+      fetchLeaderboardData(teamUsers).then((data) => {
+        setLeaderboardData((prevData) => ({ ...prevData, [route.key]: data }));
+      });
+      return <ActivityIndicator size="large" color={colors.primary} />;
+    }
 
     return (
       <FlatList
-        data={filteredData}
+        data={leaderboardData[route.key]} // Use the leaderboard data for this team
         renderItem={renderItem}
         keyExtractor={(item) => item.uid}
         refreshControl={
@@ -133,7 +165,7 @@ const LeaderboardScreen = () => {
         renderScene={renderScene}
         onIndexChange={setIndex}
         initialLayout={{ width: '100%' }}
-        renderTabBar={props => (
+        renderTabBar={(props) => (
           <TabBar 
             {...props}
             style={styles.tabBar}
@@ -159,7 +191,7 @@ const styles = StyleSheet.create({
   },
   card: {
     marginVertical: 8,
-    backgroundColor: colors.cardBackground,
+    backgroundColor: colors.inactiveIcon,
     borderRadius: 10,
     padding: 15,
     margin: 10,
@@ -167,8 +199,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   currentUserCard: {
-    borderColor: colors.primary,
-    borderWidth: 2,
+    borderColor: '#56E364',
+    borderWidth: 5,
   },
   cardContent: {
     flexDirection: 'row',
@@ -181,7 +213,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   currentUserName: {
-    color: colors.primary,
+    color: '#56E364',
   },
   stats: {
     flexDirection: 'column',
@@ -207,4 +239,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default LeaderboardScreen;
+export default TeamStandingsScreen;

@@ -21,46 +21,48 @@ import { useNavigation } from "@react-navigation/native";
 import Slider from '@react-native-community/slider';
 import colors from '../../globalVariables/colors';
 
-const KirtansScreen = () => {
-  const [kirtans, setKirtans] = useState([]);
-  const [currentKirtan, setCurrentKirtan] = useState(null);
+const AhnikScreen = () => {
+  const [ahniks, setAhniks] = useState([]);
+  const [currentAhnik, setCurrentAhnik] = useState(null);
   const [sound, setSound] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [completionStatuses, setCompletionStatuses] = useState({});
   const [isAccessCodeModalVisible, setIsAccessCodeModalVisible] = useState(false);
-  const [isNewKirtanModalVisible, setIsNewKirtanModalVisible] = useState(false);
-  const [newKirtanName, setNewKirtanName] = useState('');
-  const [newKirtanEnglishText, setNewKirtanEnglishText] = useState('');
-  const [newKirtanEnglishDefinition, setNewKirtanEnglishDefinition] = useState('');
+  const [isNewAhnikModalVisible, setIsNewAhnikModalVisible] = useState(false);
+  const [newAhnikName, setNewAhnikName] = useState('');
+  const [newAhnikEnglishText, setNewAhnikEnglishText] = useState('');
+  const [newAhnikEnglishDefinition, setNewAhnikEnglishDefinition] = useState('');
   const [accessCodeInput, setAccessCodeInput] = useState('');
   const [isLoading, setLoading] = useState(true);
-  const [selectedKirtanId, setSelectedKirtanId] = useState(null);
+  const [selectedAhnikId, setSelectedAhnikId] = useState(null);
   const [audioPosition, setAudioPosition] = useState(0);
   const [audioDuration, setAudioDuration] = useState(0);
 
   const navigation = useNavigation();
   const ACCESS_CODE = '1933';
 
+  // Fetch Ahnik completion statuses for the current user
   const fetchCompletionStatuses = useCallback(async () => {
-    const userDocRef = doc(database, 'userMukhpathsKirtans', auth.currentUser.email);
+    const userDocRef = doc(database, 'userMukhpathsAhnik', auth.currentUser.email);
     const userDocSnap = await getDoc(userDocRef);
     if (userDocSnap.exists()) {
       setCompletionStatuses(userDocSnap.data());
     }
   }, []);
 
-  const fetchKirtans = useCallback(async () => {
+  // Fetch Ahnik data from Firestore
+  const fetchAhniks = useCallback(async () => {
     setLoading(true);
     try {
-      const kirtanDataRef = doc(database, 'SCubedData', 'KirtansData');
-      const kirtanDataSnap = await getDoc(kirtanDataRef);
-      if (kirtanDataSnap.exists()) {
-        setKirtans(kirtanDataSnap.data().data);
+      const ahnikDataRef = doc(database, 'SCubedData', 'AhnikData');
+      const ahnikDataSnap = await getDoc(ahnikDataRef);
+      if (ahnikDataSnap.exists()) {
+        setAhniks(ahnikDataSnap.data().data);
       } else {
-        console.log('No Kirtan data found in Firestore.');
+        console.log('No Ahnik data found in Firestore.');
       }
     } catch (error) {
-      console.error('Error fetching Kirtans:', error);
+      console.error('Error fetching Ahniks:', error);
     } finally {
       setLoading(false);
     }
@@ -68,22 +70,22 @@ const KirtansScreen = () => {
 
   useEffect(() => {
     fetchCompletionStatuses();
-    fetchKirtans();
-  }, [fetchCompletionStatuses, fetchKirtans]);
+    fetchAhniks();
+  }, [fetchCompletionStatuses, fetchAhniks]);
 
   useEffect(() => {
     return sound ? () => sound.unloadAsync() : undefined;
   }, [sound]);
 
-  const playKirtan = async (kirtan) => {
+  const playAhnik = async (ahnik) => {
     if (sound) {
       await sound.unloadAsync();
     }
   
     try {
-      const { sound: newSound } = await Audio.Sound.createAsync({ uri: kirtan.audioURL });
+      const { sound: newSound } = await Audio.Sound.createAsync({ uri: ahnik.audioURL });
       setSound(newSound);
-      setCurrentKirtan(kirtan);
+      setCurrentAhnik(ahnik);
       setIsPlaying(true);
   
       await newSound.playAsync();
@@ -109,18 +111,18 @@ const KirtansScreen = () => {
 
       const leaderboardDocSnap = await getDoc(leaderboardDocRef);
       if (leaderboardDocSnap.exists()) {
-        const currentKirtans = leaderboardDocSnap.data().kirtans || 0;
+        const currentAhniks = leaderboardDocSnap.data().ahnicks || 0;
         const currentShloks = leaderboardDocSnap.data().shloks || 0;
 
         await updateDoc(leaderboardDocRef, {
           firstName,
-          kirtans: currentKirtans + increment,
+          ahnicks: currentAhniks + increment,
           shloks: currentShloks,
         });
       } else {
         await setDoc(leaderboardDocRef, {
           firstName,
-          kirtans: increment > 0 ? increment : 0,
+          ahnicks: increment > 0 ? increment : 0,
           shloks: currentShloks || 0,
         });
       }
@@ -129,88 +131,88 @@ const KirtansScreen = () => {
     }
   }, []);
 
-  const toggleCompletionStatus = async (kirtanId, requireAccessCode = false) => {
+  const toggleCompletionStatus = async (ahnikId, requireAccessCode = false) => {
     if (requireAccessCode && accessCodeInput !== ACCESS_CODE) {
-      setSelectedKirtanId(kirtanId);
+      setSelectedAhnikId(ahnikId);
       setIsAccessCodeModalVisible(true);
       return;
     }
 
-    const isCompleted = !!completionStatuses[`kirtan${kirtanId}`];
+    const isCompleted = !!completionStatuses[`ahnik${ahnikId}`];
     const newStatus = !isCompleted;
 
     setCompletionStatuses(prevStatuses => ({
       ...prevStatuses,
-      [`kirtan${kirtanId}`]: newStatus,
+      [`ahnik${ahnikId}`]: newStatus,
     }));
 
     await updateLeaderboard(newStatus ? 1 : -1);
 
-    const userDocRef = doc(database, 'userMukhpathsKirtans', auth.currentUser.email);
+    const userDocRef = doc(database, 'userMukhpathsAhnik', auth.currentUser.email);
     const userDocSnap = await getDoc(userDocRef);
     if (userDocSnap.exists()) {
-      await updateDoc(userDocRef, { [`kirtan${kirtanId}`]: newStatus });
+      await updateDoc(userDocRef, { [`ahnik${ahnikId}`]: newStatus });
     } else {
-      await setDoc(userDocRef, { [`kirtan${kirtanId}`]: newStatus });
+      await setDoc(userDocRef, { [`ahnik${ahnikId}`]: newStatus });
     }
   };
 
-  const addNewKirtan = async () => {
-    if (!newKirtanName || !newKirtanEnglishText || !newKirtanEnglishDefinition) {
+  const addNewAhnik = async () => {
+    if (!newAhnikName || !newAhnikEnglishText || !newAhnikEnglishDefinition) {
       alert('Please fill out all fields.');
       return;
     }
 
-    const newKirtan = {
-      id: kirtans.length + 1,
-      kirtans: newKirtanName,
-      englishText: newKirtanEnglishText,
-      englishDefinition: newKirtanEnglishDefinition,
+    const newAhnik = {
+      id: ahniks.length + 1,
+      kirtans: newAhnikName,
+      englishText: newAhnikEnglishText,
+      englishDefinition: newAhnikEnglishDefinition,
       tag: 'user-created',
     };
 
     try {
-      const kirtanDataRef = doc(database, 'SCubedData', 'KirtansData');
-      const updatedKirtans = [...kirtans, newKirtan];
-      await updateDoc(kirtanDataRef, { data: updatedKirtans });
+      const ahnikDataRef = doc(database, 'SCubedData', 'AhnikData');
+      const updatedAhnicks = [...ahniks, newAhnik];
+      await updateDoc(ahnikDataRef, { data: updatedAhnicks });
 
-      setKirtans(updatedKirtans);
-      setIsNewKirtanModalVisible(false);
-      setNewKirtanName('');
-      setNewKirtanEnglishText('');
-      setNewKirtanEnglishDefinition('');
+      setAhniks(updatedAhnicks);
+      setIsNewAhnikModalVisible(false);
+      setNewAhnikName('');
+      setNewAhnikEnglishText('');
+      setNewAhnikEnglishDefinition('');
     } catch (error) {
-      console.error('Error adding new kirtan:', error);
+      console.error('Error adding new ahnik:', error);
     }
   };
 
-  const handleDeleteKirtan = async (kirtanId) => {
-    const updatedKirtans = kirtans.filter(kirtan => kirtan.id !== kirtanId);
+  const handleDeleteAhnik = async (ahnikId) => {
+    const updatedAhnicks = ahniks.filter(ahnik => ahnik.id !== ahnikId);
     try {
-      const kirtanDataRef = doc(database, 'SCubedData', 'KirtansData');
-      await updateDoc(kirtanDataRef, { data: updatedKirtans });
-      setKirtans(updatedKirtans);
+      const ahnikDataRef = doc(database, 'SCubedData', 'AhnikData');
+      await updateDoc(ahnikDataRef, { data: updatedAhnicks });
+      setAhniks(updatedAhnicks);
     } catch (error) {
-      console.error('Error deleting kirtan:', error);
+      console.error('Error deleting ahnik:', error);
     }
   };
 
-  const KirtanCard = ({ kirtan }) => {
-    const completed = !!completionStatuses[`kirtan${kirtan.id}`];
+  const AhnikCard = ({ ahnik }) => {
+    const completed = !!completionStatuses[`ahnik${ahnik.id}`];
   
     const handleCompletionPress = () => {
-      setSelectedKirtanId(kirtan.id);
-      toggleCompletionStatus(kirtan.id, !completed);
+      setSelectedAhnikId(ahnik.id);
+      toggleCompletionStatus(ahnik.id, !completed);
     };
   
     return (
       <Card style={[styles.card, completed && styles.cardCompleted]}>
         <Card.Content>
-          <Title style={styles.title}>{kirtan.kirtans}</Title>
+          <Title style={styles.title}>{ahnik.kirtans}</Title>
           <View style={styles.divider} />
-          <Paragraph style={styles.paragraph}>{kirtan.englishText}</Paragraph>
+          <Paragraph style={styles.paragraph}>{ahnik.englishText}</Paragraph>
           <View style={styles.divider} />
-          <Paragraph style={styles.paragraph}>{kirtan.englishDefinition}</Paragraph>
+          <Paragraph style={styles.paragraph}>{ahnik.englishDefinition}</Paragraph>
         </Card.Content>
         <Card.Actions style={styles.cardActions}>
           <Button
@@ -220,11 +222,11 @@ const KirtansScreen = () => {
           >
             {completed ? "Mark Incomplete" : "Mark Complete"}
           </Button>
-          <TouchableOpacity onPress={() => playKirtan(kirtan)}>
+          <TouchableOpacity onPress={() => playAhnik(ahnik)}>
             <Ionicons name="play-circle" size={40} color={colors.primary} />
           </TouchableOpacity>
-          {kirtan.tag === 'user-created' && (
-            <TouchableOpacity onPress={() => handleDeleteKirtan(kirtan.id)}>
+          {ahnik.tag === 'user-created' && (
+            <TouchableOpacity onPress={() => handleDeleteAhnik(ahnik.id)}>
               <Ionicons name="trash" size={24} color="red" />
             </TouchableOpacity>
           )}
@@ -234,7 +236,7 @@ const KirtansScreen = () => {
   };
 
   const MiniPlayer = () => {
-    if (!currentKirtan) return null;
+    if (!currentAhnik) return null;
   
     const togglePlayPause = async () => {
       if (isPlaying) {
@@ -255,7 +257,7 @@ const KirtansScreen = () => {
   
     return (
       <View style={styles.miniPlayer}>
-        <Text style={styles.miniPlayerText}>{currentKirtan.kirtans}</Text>
+        <Text style={styles.miniPlayerText}>{currentAhnik.kirtans}</Text>
         <TouchableOpacity onPress={togglePlayPause}>
           <Ionicons name={isPlaying ? 'pause' : 'play'} size={30} color="white" />
         </TouchableOpacity>
@@ -274,17 +276,17 @@ const KirtansScreen = () => {
   };
 
   useLayoutEffect(() => {
-    const completedKirtansCount = Object.values(completionStatuses).filter(status => status).length;
-    const totalKirtansCount = kirtans.length;
+    const completedAhnicksCount = Object.values(completionStatuses).filter(status => status).length;
+    const totalAhnicksCount = ahniks.length;
     
     navigation.setOptions({
       headerRight: () => (
         <Text style={{ marginRight: 16, fontSize: 18, color: colors.lightText }}>
-          {completedKirtansCount}/{totalKirtansCount}
+          {completedAhnicksCount}/{totalAhnicksCount}
         </Text>
       ),
     });
-  }, [navigation, completionStatuses, kirtans]);
+  }, [navigation, completionStatuses, ahniks]);
 
   if (isLoading) {
     return (
@@ -300,66 +302,66 @@ const KirtansScreen = () => {
         icon='plus'
         textColor='black'
         style={styles.button1}
-        onPress={() => setIsNewKirtanModalVisible(true)}
+        onPress={() => setIsNewAhnikModalVisible(true)}
       >
-        New Kirtan
+        New Ahnik
       </Button>
 
       <FlatList
-        data={kirtans}
-        renderItem={({ item }) => <KirtanCard kirtan={item} />}
+        data={ahniks}
+        renderItem={({ item }) => <AhnikCard ahnik={item} />}
         keyExtractor={(item) => item.id.toString()}
       />
 
       <MiniPlayer />
 
       <Modal
-        visible={isNewKirtanModalVisible}
-        onRequestClose={() => setIsNewKirtanModalVisible(false)}
+        visible={isNewAhnikModalVisible}
+        onRequestClose={() => setIsNewAhnikModalVisible(false)}
         transparent
         animationType="slide"
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={{ flex: 1 }}
-        > 
+        >
         <ScrollView contentContainerStyle={styles.modalContainer}>
           <View style={styles.modalContent}>
             <TouchableOpacity
               style={styles.closeButton}
-              onPress={() => setIsNewKirtanModalVisible(false)}
+              onPress={() => setIsNewAhnikModalVisible(false)}
             >
               <Ionicons name="close" size={30} color={colors.primary} />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Add New Kirtan</Text>
+            <Text style={styles.modalTitle}>Add New Ahnik</Text>
             <TextInput
               style={styles.accessCodeInput}
               placeholderTextColor='white'
-              placeholder="Kirtan Name"
-              value={newKirtanName}
-              onChangeText={setNewKirtanName}
+              placeholder="Ahnik Name"
+              value={newAhnikName}
+              onChangeText={setNewAhnikName}
             />
             <TextInput
               style={styles.accessCodeInput}
               placeholderTextColor='white'
               placeholder="English Text"
-              value={newKirtanEnglishText}
-              onChangeText={setNewKirtanEnglishText}
+              value={newAhnikEnglishText}
+              onChangeText={setNewAhnikEnglishText}
             />
             <TextInput
               style={styles.accessCodeInput}
               placeholderTextColor='white'
               placeholder="English Definition"
-              value={newKirtanEnglishDefinition}
-              onChangeText={setNewKirtanEnglishDefinition}
+              value={newAhnikEnglishDefinition}
+              onChangeText={setNewAhnikEnglishDefinition}
             />
             <Button
-              title="Add Kirtan"
+              title="Add Ahnik"
               textColor='white'
               style={styles.submitButton}
-              onPress={addNewKirtan}
+              onPress={addNewAhnik}
             >
-              Add Kirtan
+              Add Ahnik
             </Button>
           </View>
         </ScrollView>
@@ -375,7 +377,7 @@ const KirtansScreen = () => {
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={{ flex: 1 }}
-        > 
+        >
         <ScrollView contentContainerStyle={styles.modalContainer}>
           <View style={styles.modalContent}>
             <TouchableOpacity
@@ -388,7 +390,6 @@ const KirtansScreen = () => {
             <TextInput
               style={styles.accessCodeInput}
               placeholder="Access Code"
-              placeholderTextColor='white'
               value={accessCodeInput}
               onChangeText={(text) => setAccessCodeInput(text)}
               secureTextEntry
@@ -399,7 +400,7 @@ const KirtansScreen = () => {
               style={styles.submitButton}
               onPress={() => {
                 if (accessCodeInput === ACCESS_CODE) {
-                  toggleCompletionStatus(selectedKirtanId);
+                  toggleCompletionStatus(selectedAhnikId);
                   setIsAccessCodeModalVisible(false);
                   setAccessCodeInput('');
                 } else {
@@ -530,4 +531,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default KirtansScreen;
+export default AhnikScreen;

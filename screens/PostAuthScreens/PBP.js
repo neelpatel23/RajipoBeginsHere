@@ -8,13 +8,15 @@ import {
   Modal,
   TextInput,
   ActivityIndicator,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Card, Title, Paragraph, Button} from 'react-native-paper';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { database, auth } from '../../config/firebase';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { useNavigation } from "@react-navigation/native";
-
 
 import colors from '../../globalVariables/colors';
 
@@ -25,10 +27,88 @@ const PBPScreen = () => {
   const [accessCodeInput, setAccessCodeInput] = useState('');
   const [isLoading, setLoading] = useState(true);
   const [selectedQuotationId, setSelectedQuotationId] = useState(null);
+  const [isNewQuotationModalVisible, setIsNewQuotationModalVisible] = useState(false);
+  const [newQuotationName, setNewQuotationName] = useState('');
+  const [newQuotationGujarati, setNewQuotationGujarati] = useState('');
+  const [newQuotationEnglish, setNewQuotationEnglish] = useState('');
 
   const navigation = useNavigation();
 
   const ACCESS_CODE = '1933';
+
+    // Function to add a new quotation
+  const handleAddNewQuotation = async () => {
+    if (!newQuotationName || !newQuotationGujarati || !newQuotationEnglish) {
+      alert('Please fill out all fields.');
+      return;
+    }
+
+    const newQuotation = {
+      id: quotations.length + 1, // Assign a new ID (you might want to ensure unique IDs)
+      name: newQuotationName,
+      gujarati: newQuotationGujarati,
+      english: newQuotationEnglish,
+      tag: 'user-created', // Tag for user-created quotations
+    };
+
+    try {
+      // Update Firestore with the new quotation
+      const quotationDataRef = doc(database, 'SCubedData', 'PBPData');
+      const updatedQuotations = [...quotations, newQuotation];
+      await updateDoc(quotationDataRef, { data: updatedQuotations });
+
+      // Update local state to include the new quotation
+      setQuotations(updatedQuotations);
+      setIsNewQuotationModalVisible(false);
+      setNewQuotationName('');
+      setNewQuotationGujarati('');
+      setNewQuotationEnglish('');
+    } catch (error) {
+      console.error('Error adding new quotation:', error);
+    }
+  };
+
+  const updateLeaderboard = useCallback(async (increment) => {
+    const userDocRef = doc(database, 'userData', auth.currentUser.uid);
+    const userDocSnap = await getDoc(userDocRef);
+  
+    if (userDocSnap.exists()) {
+      const { firstName } = userDocSnap.data();
+      const leaderboardDocRef = doc(database, 'leaderboard', auth.currentUser.uid);
+  
+      const leaderboardDocSnap = await getDoc(leaderboardDocRef);
+      if (leaderboardDocSnap.exists()) {
+        const currentPBPCount = leaderboardDocSnap.data().pbps || 0;
+        await updateDoc(leaderboardDocRef, {
+          firstName,
+          pbps: currentPBPCount + increment,
+        });
+      } else {
+        await setDoc(leaderboardDocRef, {
+          firstName,
+          pbps: increment > 0 ? increment : 0,
+        });
+      }
+    } else {
+      console.error("User document does not exist in userData collection.");
+    }
+  }, []);
+  
+  // Function to delete a user-created quotation
+  const handleDeleteQuotation = async (quotationId) => {
+    const updatedQuotations = quotations.filter((quotation) => quotation.id !== quotationId);
+
+    try {
+      // Update Firestore with the filtered quotations
+      const quotationDataRef = doc(database, 'SCubedData', 'PBPData');
+      await updateDoc(quotationDataRef, { data: updatedQuotations });
+
+      // Update local state to reflect the deletion
+      setQuotations(updatedQuotations);
+    } catch (error) {
+      console.error('Error deleting quotation:', error);
+    }
+  };
 
   const fetchCompletionStatuses = useCallback(async () => {
     const userDocRef = doc(database, 'userMukhpathsPBP', auth.currentUser.email);
@@ -67,13 +147,17 @@ const PBPScreen = () => {
       return;
     }
   
-    const newStatus = !completionStatuses[`quotation${quotationId}`];
+    const isCompleted = !!completionStatuses[`quotation${quotationId}`];
+    const newStatus = !isCompleted;
   
     // Update local state
     setCompletionStatuses(prevStatuses => ({
       ...prevStatuses,
-      [`quotation${quotationId}`]: newStatus
+      [`quotation${quotationId}`]: newStatus,
     }));
+  
+    // Only update leaderboard if the quotation is being marked as complete or incomplete
+    await updateLeaderboard(newStatus ? 1 : -1);
   
     // Update Firebase
     const userDocRef = doc(database, 'userMukhpathsPBP', auth.currentUser.email);
@@ -83,15 +167,15 @@ const PBPScreen = () => {
     } else {
       await setDoc(userDocRef, { [`quotation${quotationId}`]: newStatus });
     }
-  };
+  };  
   
 
   const QuotationCard = ({ quotation }) => {
-    const completed = !!completionStatuses[`quotation${quotation.id}`]; // Ensure correct ID reference
+    const completed = !!completionStatuses[`quotation${quotation.id}`];
   
     const handleCompletionPress = () => {
-      setSelectedQuotationId(quotation.id); // Set the selected quotation ID
-      toggleCompletionStatus(quotation.id, !completed); // Toggle the completion status
+      setSelectedQuotationId(quotation.id);
+      toggleCompletionStatus(quotation.id, !completed);
     };
   
     return (
@@ -110,13 +194,72 @@ const PBPScreen = () => {
             onPress={handleCompletionPress}
             textColor='white'
           >
-            {completed ? "Mark Incomplete" : "Mark Complete"}
+            {completed ? 'Mark Incomplete' : 'Mark Complete'}
           </Button>
+          {quotation.tag === 'user-created' && (
+            <TouchableOpacity onPress={() => handleDeleteQuotation(quotation.id)}>
+              <Ionicons name="trash" size={24} color="red" />
+            </TouchableOpacity>
+          )}
         </Card.Actions>
       </Card>
     );
   };
-  
+
+  // Add modal for creating new quotations in the return block of PBPScreen
+  <>
+    // Add modal for creating new quotations in the return block of PBPScreen
+    <Modal
+      visible={isNewQuotationModalVisible}
+      onRequestClose={() => setIsNewQuotationModalVisible(false)}
+      transparent
+      animationType="slide"
+    >
+      <View style={styles.modalContainer}>
+        <View style={styles.modalContent}>
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => setIsNewQuotationModalVisible(false)}
+          >
+            <Ionicons name="close" size={30} color={colors.primary} />
+          </TouchableOpacity>
+          <Text style={styles.modalTitle}>Add New Quotation</Text>
+          <TextInput
+            style={styles.accessCodeInput}
+            placeholder="Quotation Name"
+            value={newQuotationName}
+            onChangeText={setNewQuotationName} />
+          <TextInput
+            style={styles.accessCodeInput}
+            placeholder="Gujarati Text"
+            value={newQuotationGujarati}
+            onChangeText={setNewQuotationGujarati} />
+          <TextInput
+            style={styles.accessCodeInput}
+            placeholder="English Text"
+            value={newQuotationEnglish}
+            onChangeText={setNewQuotationEnglish} />
+          <Button
+            title="Add Quotation"
+            textColor='white'
+            style={styles.submitButton}
+            onPress={handleAddNewQuotation}
+          >
+            Add Quotation
+          </Button>
+        </View>
+      </View>
+    </Modal>
+    // Update the "New Quotation" button's onPress event
+    <Button
+      icon='plus'
+      mode='contained'
+      style={styles.button1}
+      onPress={() => setIsNewQuotationModalVisible(true)}
+    >
+      New Quotation
+    </Button>
+    </>
    
   useLayoutEffect(() => {
     // Calculate completed shlokas count
@@ -144,18 +287,90 @@ const PBPScreen = () => {
 
   return (
     <View style={styles.container}>
+      {/* New Quotation Button */}
+      <Button
+        icon='plus'
+        textColor='black'
+        style={styles.button1}
+        onPress={() => setIsNewQuotationModalVisible(true)}
+      >
+        New Quotation
+      </Button>
+  
+      {/* FlatList for rendering quotations */}
       <FlatList
         data={quotations}
         renderItem={({ item }) => <QuotationCard quotation={item} />}
         keyExtractor={(item) => item.id.toString()}
       />
+  
+      {/* Modal for adding a new quotation */}
+      <Modal
+        visible={isNewQuotationModalVisible}
+        onRequestClose={() => setIsNewQuotationModalVisible(false)}
+        transparent
+        animationType="slide"
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <ScrollView contentContainerStyle={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setIsNewQuotationModalVisible(false)}
+              >
+                <Ionicons name="close" size={30} color={colors.primary} />
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Add New Quotation</Text>
+              <TextInput
+                style={styles.accessCodeInput}
+                placeholderTextColor='white'
+                placeholder="Quotation Name"
+                value={newQuotationName}
+                onChangeText={setNewQuotationName}
+              />
+              <TextInput
+                style={styles.accessCodeInput}
+                placeholderTextColor='white'
+                placeholder="Gujarati Text"
+                value={newQuotationGujarati}
+                onChangeText={setNewQuotationGujarati}
+              />
+              <TextInput
+                style={styles.accessCodeInput}
+                placeholder="English Text"
+                placeholderTextColor='white'
+                value={newQuotationEnglish}
+                onChangeText={setNewQuotationEnglish}
+              />
+              <Button
+                title="Add Quotation"
+                placeholderTextColor='white'
+                textColor='white'
+                style={styles.submitButton}
+                onPress={handleAddNewQuotation}
+              >
+                Add Quotation
+              </Button>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Modal>
+  
+      {/* Modal for entering the access code */}
       <Modal
         visible={isAccessCodeModalVisible}
         onRequestClose={() => setIsAccessCodeModalVisible(false)}
         transparent
         animationType="slide"
       >
-        <View style={styles.modalContainer}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <ScrollView contentContainerStyle={styles.modalContainer}>
           <View style={styles.modalContent}>
             <TouchableOpacity
               style={styles.closeButton}
@@ -166,6 +381,7 @@ const PBPScreen = () => {
             <Text style={styles.modalTitle}>Enter Access Code</Text>
             <TextInput
               style={styles.accessCodeInput}
+              placeholderTextColor='white'
               placeholder="Access Code"
               value={accessCodeInput}
               onChangeText={(text) => setAccessCodeInput(text)}
@@ -173,8 +389,8 @@ const PBPScreen = () => {
             />
             <Button
               title="Submit"
-              textColor='white' // Set the text color
-              style={styles.submitButton} // Set the button style
+              textColor='white'
+              style={styles.submitButton}
               onPress={() => {
                 if (accessCodeInput === ACCESS_CODE) {
                   toggleCompletionStatus(selectedQuotationId);
@@ -188,10 +404,11 @@ const PBPScreen = () => {
               Submit
             </Button>
           </View>
-        </View>
+        </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
-  );
+  );  
 };
 
 const styles = StyleSheet.create({
@@ -199,6 +416,12 @@ container: {
   flex: 1,
   backgroundColor: colors.darkBackground,
   paddingBottom: 0
+},
+floatingButton: {
+  position: 'absolute',
+  top: 20,
+  right: 20,
+  zIndex: 100,
 },
 submitButton: {
     backgroundColor: colors.accent, // Set the button background color
@@ -293,6 +516,10 @@ submitButton: {
     flex: 1,
     marginHorizontal: 5,
     borderRadius: 20,
+  },
+  button1: {
+    borderRadius: 0,
+    backgroundColor: colors.accent
   },
   buttonLabel: {
     color: colors.primary

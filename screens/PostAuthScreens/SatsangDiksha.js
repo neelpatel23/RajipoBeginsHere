@@ -8,6 +8,9 @@ import {
   Modal,
   TextInput,
   ActivityIndicator,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Card, Title, Paragraph, Button } from 'react-native-paper';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -18,13 +21,18 @@ import Slider from '@react-native-community/slider';
 import { useNavigation } from "@react-navigation/native";
 import colors from '../../globalVariables/colors';
 
-const SatsangDiksha = () => {
+const SatsangDiksha = ({ stopAudio }) => {
   const [shlokas, setShlokas] = useState([]);
   const [currentShloka, setCurrentShloka] = useState(null);
   const [sound, setSound] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [completionStatuses, setCompletionStatuses] = useState({});
   const [isAccessCodeModalVisible, setIsAccessCodeModalVisible] = useState(false);
+  const [isNewShlokModalVisible, setIsNewShlokModalVisible] = useState(false);
+  const [newShlokName, setNewShlokName] = useState('');
+  const [newShlokGujarati, setNewShlokGujarati] = useState('');
+  const [newShlokSanskrit, setNewShlokSanskrit] = useState('');
+  const [newShlokEnglish, setNewShlokEnglish] = useState('');
   const [accessCodeInput, setAccessCodeInput] = useState('');
   const [isLoading, setLoading] = useState(true);
   const [selectedShlokaId, setSelectedShlokaId] = useState(null);
@@ -35,7 +43,6 @@ const SatsangDiksha = () => {
   const navigation = useNavigation();
   const ACCESS_CODE = '1933';
 
-  // Fetch shlokas from the database
   const fetchShlokas = useCallback(async () => {
     setLoading(true);
     try {
@@ -53,7 +60,6 @@ const SatsangDiksha = () => {
     }
   }, []);
 
-  // Fetch the completion statuses
   const fetchCompletionStatuses = useCallback(async () => {
     const userDocRef = doc(database, 'userMukhpathsSD', auth.currentUser.email);
     const userDocSnap = await getDoc(userDocRef);
@@ -62,13 +68,11 @@ const SatsangDiksha = () => {
     }
   }, []);
 
-  // Fetch data on component mount
   useEffect(() => {
     fetchCompletionStatuses();
-    fetchShlokas();  // Ensure fetchShlokas is being called
+    fetchShlokas();
   }, [fetchCompletionStatuses, fetchShlokas]);
 
-  // Set up audio mode on component mount
   useEffect(() => {
     const setAudioMode = async () => {
       try {
@@ -86,20 +90,32 @@ const SatsangDiksha = () => {
     setAudioMode();
   }, []);
 
-  // Unload sound when the component unmounts
   useEffect(() => {
-    return sound ? () => sound.unloadAsync() : undefined;
+    return sound
+      ? () => {
+          sound.unloadAsync() // Stop the audio when the component unmounts
+        }
+      : undefined;
   }, [sound]);
-  
-  const handleAddContent = () => {
-    navigation.navigate('AddContent'); // Navigate to the Add Content screen
+
+  const stopShlokaAudio = async () => {
+    if (sound) {
+      await sound.pauseAsync();
+      setIsPlaying(false);
+    }
   };
+
+  useEffect(() => {
+    if (typeof stopAudio === 'function') {
+      stopAudio(stopShlokaAudio); // Register the audio stop function
+    }
+  }, [stopAudio, sound]);
 
   const playShloka = async (shloka, audioType) => {
     if (sound) {
       await sound.unloadAsync();
     }
-  
+
     try {
       const audioURL = audioType === 'sanskrit' ? shloka.audioURL : shloka.audioURL1;
       const { sound: newSound } = await Audio.Sound.createAsync({ uri: audioURL });
@@ -107,20 +123,20 @@ const SatsangDiksha = () => {
       setCurrentShloka(shloka);
       setCurrentAudioType(audioType);
       setIsPlaying(true);
-  
+
       newSound.setOnPlaybackStatusUpdate(updatePlaybackStatus);
       await newSound.playAsync();
     } catch (error) {
-      console.error("Error loading audio:", error);
+      console.error('Error loading audio:', error);
     }
   };
-  
+
   const updatePlaybackStatus = (status) => {
     setIsPlaying(status.isPlaying);
     setAudioPosition(status.positionMillis);
     setAudioDuration(status.durationMillis);
   };
-  
+
   const updateLeaderboard = useCallback(async (increment) => {
     const userDocRef = doc(database, 'userData', auth.currentUser.uid);
     const userDocSnap = await getDoc(userDocRef);
@@ -131,21 +147,19 @@ const SatsangDiksha = () => {
 
       const leaderboardDocSnap = await getDoc(leaderboardDocRef);
       if (leaderboardDocSnap.exists()) {
-        // Update the existing leaderboard entry
         await updateDoc(leaderboardDocRef, {
           firstName,
           shloks: leaderboardDocSnap.data().shloks + increment,
         });
       } else {
-        // Create a new leaderboard entry if it doesn't exist
         await setDoc(leaderboardDocRef, {
           firstName,
-          shloks: increment > 0 ? increment : 0,  // Ensure no negative values on creation
-          kirtans: 0,  // Initialize kirtans to 0
+          shloks: increment > 0 ? increment : 0,
+          kirtans: 0,
         });
       }
     } else {
-      console.error("User document does not exist in userData collection.");
+      console.error('User document does not exist in userData collection.');
     }
   }, []);
 
@@ -155,20 +169,17 @@ const SatsangDiksha = () => {
       setIsAccessCodeModalVisible(true);
       return;
     }
-  
+
     const isCompleted = !!completionStatuses[`shloka${shlokaId}`];
     const newStatus = !isCompleted;
-  
-    // Update local state
+
     setCompletionStatuses(prevStatuses => ({
       ...prevStatuses,
       [`shloka${shlokaId}`]: newStatus,
     }));
-  
-    // Update leaderboard
+
     await updateLeaderboard(newStatus ? 1 : -1);
-  
-    // Update Firebase
+
     const userDocRef = doc(database, 'userMukhpathsSD', auth.currentUser.email);
     const userDocSnap = await getDoc(userDocRef);
     if (userDocSnap.exists()) {
@@ -178,16 +189,86 @@ const SatsangDiksha = () => {
     }
   };
 
+  const addNewShlok = async () => {
+    if (!newShlokName || !newShlokGujarati || !newShlokSanskrit || !newShlokEnglish) {
+      alert('Please fill out all fields.');
+      return;
+    }
+
+    const newShlok = {
+      id: shlokas.length + 1,
+      shlokas: newShlokName,
+      gujaratiText: newShlokGujarati,
+      sanskritLippy: newShlokSanskrit,
+      englishText: newShlokEnglish,
+      tag: 'user-created',
+    };
+
+    try {
+      const shlokaDataRef = doc(database, 'SCubedData', 'SatsangDikshaData');
+      const updatedShlokas = [...shlokas, newShlok];
+      await updateDoc(shlokaDataRef, { data: updatedShlokas });
+
+      setShlokas(updatedShlokas);
+      setIsNewShlokModalVisible(false);
+      setNewShlokName('');
+      setNewShlokGujarati('');
+      setNewShlokSanskrit('');
+      setNewShlokEnglish('');
+    } catch (error) {
+      console.error('Error adding new shlok:', error);
+    }
+  };
+
+  const MiniPlayer = () => {
+    if (!currentShloka) return null;
+  
+    const togglePlayPause = async () => {
+      if (isPlaying) {
+        await sound.pauseAsync();
+      } else {
+        await sound.playAsync();
+      }
+      setIsPlaying(!isPlaying);
+    };
+  
+    const onSliderValueChange = async (value) => {
+      if (sound) {
+        const newPosition = value * audioDuration;
+        await sound.setPositionAsync(newPosition);
+        setAudioPosition(newPosition);
+      }
+    };
+  
+    return (
+      <View style={styles.miniPlayer}>
+        <Text style={styles.miniPlayerText}>{currentShloka.shlokas}</Text>
+        <TouchableOpacity onPress={togglePlayPause}>
+          <Ionicons name={isPlaying ? 'pause' : 'play'} size={30} color="white" />
+        </TouchableOpacity>
+        <Slider
+          style={styles.slider}
+          minimumValue={0}
+          maximumValue={1}
+          value={audioPosition / audioDuration || 0}
+          minimumTrackTintColor={colors.sliderTrack}
+          maximumTrackTintColor={colors.sliderInactive}
+          thumbTintColor={colors.thumbColor}
+          onSlidingComplete={onSliderValueChange}
+        />
+      </View>
+    );
+  };
+  
+
   const ShlokaCard = ({ shloka }) => {
     const completed = !!completionStatuses[`shloka${shloka.id}`];
-  
+
     const handleCompletionPress = () => {
       setSelectedShlokaId(shloka.id);
       toggleCompletionStatus(shloka.id, !completed);
     };
-  
-    const sanskritLippyWithLineBreaks = shloka.sanskritLippy.replace(/\n/g, '\n');
-  
+
     return (
       <Card style={[styles.card, completed && styles.cardCompleted]}>
         <Card.Content>
@@ -199,7 +280,7 @@ const SatsangDiksha = () => {
           </TouchableOpacity>
           <View style={styles.divider} />
           <Title style={styles.subTitle}>Sanskrit</Title>
-          <Paragraph style={styles.paragraph}>{sanskritLippyWithLineBreaks}</Paragraph>
+          <Paragraph style={styles.paragraph}>{shloka.sanskritLippy}</Paragraph>
           <TouchableOpacity onPress={() => playShloka(shloka, 'sanskrit')}>
             <Ionicons name="play-circle" size={40} color={colors.primary} />
           </TouchableOpacity>
@@ -214,60 +295,33 @@ const SatsangDiksha = () => {
             labelStyle={styles.buttonLabel}
             onPress={handleCompletionPress}
           >
-            {completed ? "Mark Incomplete" : "Mark Complete"}
+            {completed ? 'Mark Incomplete' : 'Mark Complete'}
           </Button>
+          {shloka.tag === 'user-created' && (
+            <TouchableOpacity onPress={() => handleDeleteShlok(shloka.id)}>
+              <Ionicons name="trash" size={24} color="red" />
+            </TouchableOpacity>
+          )}
         </Card.Actions>
       </Card>
     );
   };
 
-  const MiniPlayer = () => {
-    if (!currentShloka) return null;  // Only show MiniPlayer if a shloka is loaded
-
-    const togglePlayPause = async () => {
-      if (isPlaying) {
-        await sound.pauseAsync();
-      } else {
-        await sound.playAsync();
-      }
-      setIsPlaying(!isPlaying);
-    };
-
-    const onSliderValueChange = async (value) => {
-      if (sound) {
-        const newPosition = value * audioDuration;
-        await sound.setPositionAsync(newPosition);
-        setAudioPosition(newPosition);
-      }
-    };
-  
-    return (
-      <View style={styles.miniPlayer}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Text style={styles.miniPlayerText}>{currentShloka.shlokas}</Text>
-          <Text style={styles.audioTypeText}> ({currentAudioType === 'sanskrit' ? 'Sanskrit' : 'Gujarati'})</Text>
-        </View>
-        <TouchableOpacity onPress={togglePlayPause} style={{ marginLeft: 10 }}>
-          <Ionicons name={isPlaying ? 'pause' : 'play'} size={30} color="white" />
-        </TouchableOpacity>
-        <Slider
-          style={styles.slider}
-          minimumValue={0}
-          maximumValue={1}
-          value={audioPosition / audioDuration || 0}
-          minimumTrackTintColor="#FFFFFF"
-          maximumTrackTintColor="#000000"
-          thumbTintColor="#FFFFFF"
-          onSlidingComplete={onSliderValueChange}
-        />
-      </View>
-    );
+  const handleDeleteShlok = async (shlokaId) => {
+    const updatedShlokas = shlokas.filter(shloka => shloka.id !== shlokaId);
+    try {
+      const shlokaDataRef = doc(database, 'SCubedData', 'SatsangDikshaData');
+      await updateDoc(shlokaDataRef, { data: updatedShlokas });
+      setShlokas(updatedShlokas);
+    } catch (error) {
+      console.error('Error deleting shlok:', error);
+    }
   };
 
   useLayoutEffect(() => {
     const completedShlokasCount = Object.values(completionStatuses).filter(status => status).length;
     const totalShlokasCount = shlokas.length;
-    
+
     navigation.setOptions({
       headerRight: () => (
         <Text style={styles.headerRightText}>
@@ -280,33 +334,101 @@ const SatsangDiksha = () => {
   if (isLoading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#f16827" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
+      <Button
+        icon='plus'
+        textColor='black'
+        style={styles.newShloka}
+        onPress={() => setIsNewShlokModalVisible(true)}
+      >
+        New Shloka
+      </Button>
+
       <FlatList
-        // style={{ marginBottom: currentShloka ? 45 : 0 }}  // Adjust marginBottom based on whether the MiniPlayer is visible
         data={shlokas}
         renderItem={({ item }) => <ShlokaCard shloka={item} />}
         keyExtractor={(item) => item.id.toString()}
       />
+
       <MiniPlayer />
-      <TouchableOpacity
-        style={styles.floatingButton}
-        onPress={handleAddContent}
+
+      <Modal
+        visible={isNewShlokModalVisible}
+        onRequestClose={() => setIsNewShlokModalVisible(false)}
+        transparent
+        animationType="fade"
       >
-        <Ionicons name="add-circle" size={60} color={colors.primary} />
-      </TouchableOpacity>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <ScrollView contentContainerStyle={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setIsNewShlokModalVisible(false)}
+              >
+                <Ionicons name="close" size={30} color={colors.primary} />
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Add New Shlok</Text>
+              <TextInput
+                placeholderTextColor='white'
+                style={styles.accessCodeInput}
+                placeholder="Shlok Name"
+                value={newShlokName}
+                onChangeText={setNewShlokName}
+              />
+              <TextInput
+                placeholderTextColor='white'
+                style={styles.accessCodeInput}
+                placeholder="Gujarati Text"
+                value={newShlokGujarati}
+                onChangeText={setNewShlokGujarati}
+              />
+              <TextInput
+                placeholderTextColor='white'
+                style={styles.accessCodeInput}
+                placeholder="Sanskrit Text"
+                value={newShlokSanskrit}
+                onChangeText={setNewShlokSanskrit}
+              />
+              <TextInput
+                placeholderTextColor='white'
+                style={styles.accessCodeInput}
+                placeholder="English Text"
+                value={newShlokEnglish}
+                onChangeText={setNewShlokEnglish}
+              />
+              <Button
+                title="Add Shlok"
+                textColor='white'
+                style={styles.submitButton}
+                onPress={addNewShlok}
+              >
+                Add Shlok
+              </Button>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Modal>
+
       <Modal
         visible={isAccessCodeModalVisible}
         onRequestClose={() => setIsAccessCodeModalVisible(false)}
         transparent
         animationType="slide"
       >
-        <View style={styles.modalContainer}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <ScrollView contentContainerStyle={styles.modalContainer}>
           <View style={styles.modalContent}>
             <TouchableOpacity
               style={styles.closeButton}
@@ -316,6 +438,7 @@ const SatsangDiksha = () => {
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Enter Access Code</Text>
             <TextInput
+              placeholderTextColor='white'
               style={styles.accessCodeInput}
               placeholder="Access Code"
               value={accessCodeInput}
@@ -332,14 +455,15 @@ const SatsangDiksha = () => {
                   setIsAccessCodeModalVisible(false);
                   setAccessCodeInput('');
                 } else {
-                  alert("Incorrect access code.");
+                  alert('Incorrect access code.');
                 }
               }}
             >
               Submit
             </Button>
           </View>
-        </View>
+        </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -348,12 +472,12 @@ const SatsangDiksha = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.darkBackground,  // Dark background
+    backgroundColor: colors.darkBackground,
     paddingBottom: 0,
   },
   card: {
     margin: 10,
-    backgroundColor: colors.darkBackground,  // Darker background for cards
+    backgroundColor: colors.darkBackground,
     borderRadius: 8,
     padding: 10,
   },
@@ -362,23 +486,8 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
     borderWidth: 1,
   },
-  title: {
-    fontSize: 18,
-    color: '#313131',  // Light text color
-    fontWeight: 'bold',
-  },
-  subTitle: {
-    fontSize: 16,
-    color: '#313131',  // Slightly lighter than the title
-    marginTop: 10,
-  },
-  paragraph: {
-    fontSize: 14,
-    color: '#313131',  // Light paragraph color
-    marginTop: 5,
-  },
-  buttonLabel: {
-    color: colors.primary
+  newShloka: {
+    backgroundColor: colors.darkBackground
   },
   miniPlayer: {
     position: 'absolute',
@@ -386,22 +495,18 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 60,
+    backgroundColor: colors.primary,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 10,
     borderTopRightRadius: 10,
     borderTopLeftRadius: 10,
-    backgroundColor: '#333333',  // Dark mini player background
   },
   miniPlayerText: {
     color: 'white',
-    fontSize: 16,
-    marginRight: 5,
-  },
-  audioTypeText: {
-    color: '#BBBBBB',
-    fontSize: 12,
+    fontSize: 19,
+    marginRight: 20,
   },
   slider: {
     flex: 1,
@@ -409,14 +514,32 @@ const styles = StyleSheet.create({
     marginLeft: 20,
     marginRight: 0,
   },
+  title: {
+    fontSize: 18,
+    color: '#313131',
+    fontWeight: 'bold',
+  },
+  subTitle: {
+    fontSize: 16,
+    color: '#313131',
+    marginTop: 10,
+  },
+  paragraph: {
+    fontSize: 14,
+    color: '#313131',
+    marginTop: 5,
+  },
+  buttonLabel: {
+    color: colors.primary
+  },
   modalContainer: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',  // Slightly darker overlay
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
   },
   modalContent: {
-    backgroundColor: '#424242',  // Dark modal background
+    backgroundColor: '#424242',
     padding: 20,
     borderRadius: 10,
     width: '80%',
@@ -425,14 +548,14 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 15,
-    color: '#FFFFFF',
+    color: 'white',
   },
   accessCodeInput: {
     borderColor: '#666666',
     borderWidth: 1,
     padding: 10,
     marginBottom: 15,
-    color: '#FFFFFF',
+    color: 'white',
     backgroundColor: '#2C2C2C',
   },
   closeButton: {
@@ -440,20 +563,12 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   submitButton: {
-    backgroundColor: colors.primary,
     marginTop: 10,
-    color: 'white',
   },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  floatingButton: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
-    zIndex: 100,
   },
   cardActions: {
     flexDirection: 'row',

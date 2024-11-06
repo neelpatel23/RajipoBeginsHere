@@ -7,6 +7,8 @@ import SatsangDiksha from './SatsangDiksha';
 import KirtansScreen from './Kirtans';
 // import { SafeAreaView } from 'react-native-safe-area-context';
 import PBPScreen from './PBP';
+import SwaminiVatoScreen from './SwaminiVato';
+import AhnikScreen from './Ahnik';
 
 const SwipeableMukhpathScreen = () => {
   const [index, setIndex] = useState(0);
@@ -18,31 +20,28 @@ const SwipeableMukhpathScreen = () => {
     { key: 'ahnik', title: 'Ahnik' },
   ]);
 
-  const navigation = useNavigation();
+  const [stopAudioCallback, setStopAudioCallback] = useState(null);
 
-  useLayoutEffect(() => {
-    const tabTitles = ['Mukhpath', 'Purshottam Bolya Prite', 'Kirtans'];
-    navigation.setOptions({
-      headerTitle: tabTitles[index],
-      headerStyle: {
-        backgroundColor: colors.darkBackground,
-      },
-      headerTintColor: 'white',
-    });
-  }, [navigation, index]);
+  const onIndexChange = (newIndex) => {
+    // Check if stopAudioCallback is a function before invoking
+    if (typeof stopAudioCallback === 'function') {
+      stopAudioCallback(); // Stop audio when switching tabs
+    }
+    setIndex(newIndex);
+  };
 
   const renderScene = ({ route }) => {
     switch (route.key) {
       case 'mukhpath':
-        return <SatsangDiksha />;
+        return <SatsangDiksha stopAudio={setStopAudioCallback} />;
       case 'pbp':
         return <PBPScreen />;
       case 'kirtans':
         return <KirtansScreen />;
       case 'svato':
-        return <PBPScreen />
+        return <SwaminiVatoScreen />
       case 'ahnik':
-        return <PBPScreen />
+        return <AhnikScreen />
       default:
         return null;
     }
@@ -55,7 +54,7 @@ const SwipeableMukhpathScreen = () => {
           style={{ flex: 1 }}
           navigationState={{ index, routes }}
           renderScene={renderScene}
-          onIndexChange={setIndex}
+          onIndexChange={onIndexChange} // Use the modified onIndexChange
           initialLayout={{ width: '100%' }}
           renderTabBar={props => (
             <TabBar 

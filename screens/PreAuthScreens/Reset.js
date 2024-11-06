@@ -4,21 +4,19 @@ import {
   Alert,
   KeyboardAvoidingView,
   ActivityIndicator,
-  Image,
   Keyboard,
   Platform,
-  SafeAreaView
+  SafeAreaView,
+  Image
 } from 'react-native';
-import { signInWithEmailAndPassword } from '@firebase/auth';
+import { sendPasswordResetEmail } from '@firebase/auth';
 import { auth } from '../../config/firebase';
-import Ionicons from 'react-native-vector-icons/Ionicons';
 import colors from '../../globalVariables/colors';
 const logoImage = require("../../assets/image1.png");
 
-export default function Login({ navigation }) {
+
+export default function ResetPassword({ navigation }) {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [passwordVisibility, setPasswordVisibility] = useState(true);
   const [loading, setLoading] = useState(false);
   const [logoSize, setLogoSize] = useState({ width: 250, height: 250 });
   const [logoPosition, setLogoPosition] = useState({ top: 20 });
@@ -45,25 +43,22 @@ export default function Login({ navigation }) {
     };
   }, []);
 
-  const onHandleLogin = async () => {
-    if (email === '' || password === '') {
-      Alert.alert('Login Error', 'Email and password fields cannot be blank.');
+  const handlePasswordReset = async () => {
+    if (email === '') {
+      Alert.alert('Reset Password Error', 'Please enter an email address.');
       return;
     }
 
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      // Successfully logged in, navigate to the next screen if needed
+      await sendPasswordResetEmail(auth, email);
+      Alert.alert('Password Reset', 'A password reset email has been sent to your email address.');
+      navigation.navigate("Login");
     } catch (err) {
-      Alert.alert('Login Error', err.message);
+      Alert.alert('Reset Password Error', err.message);
     } finally {
       setLoading(false);
     }
-  };
-
-  const togglePasswordVisibility = () => {
-    setPasswordVisibility(!passwordVisibility);
   };
 
   return (
@@ -80,7 +75,7 @@ export default function Login({ navigation }) {
           <Image source={logoImage} style={[styles.logo, logoSize, logoPosition]} />
           <TextInput
             style={styles.input}
-            placeholder="Enter email"
+            placeholder="Enter your email"
             placeholderTextColor="#000"
             autoCapitalize="none"
             autoCorrect={false}
@@ -89,34 +84,17 @@ export default function Login({ navigation }) {
             value={email}
             onChangeText={(text) => setEmail(text)}
           />
-          <View style={styles.passwordContainer}>
-            <TextInput
-              style={[styles.input, styles.passwordInput]}
-              placeholder="Enter password"
-              placeholderTextColor="#000"
-              autoCapitalize="none"
-              autoCorrect={false}
-              secureTextEntry={passwordVisibility}
-              textContentType="password"
-              value={password}
-              onSubmitEditing={onHandleLogin}
-              onChangeText={(text) => setPassword(text)}
-            />
-            <TouchableOpacity onPress={togglePasswordVisibility} style={styles.visibilityToggle}>
-              <Ionicons name={passwordVisibility ? "eye-off" : "eye"} size={24} color="#000" />
-            </TouchableOpacity>
-          </View>
           {loading ? (
-            <ActivityIndicator size="large" color="#000" />
+            <ActivityIndicator size="large" color={colors.primary} />
           ) : (
-            <TouchableOpacity style={styles.button} onPress={onHandleLogin}>
-              <Text style={styles.buttonText}>Log In</Text>
+            <TouchableOpacity style={styles.button} onPress={handlePasswordReset}>
+              <Text style={styles.buttonText}>Send Reset Link</Text>
             </TouchableOpacity>
           )}
-          <View style={styles.forgotPasswordContainer}>
-            <Text style={styles.forgotPasswordText}>Forgot your password? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate("Reset")}>
-              <Text style={styles.resetText}>Reset</Text>
+          <View style={styles.backToLoginContainer}>
+            <Text style={styles.backToLoginText}>Remember your password? </Text>
+            <TouchableOpacity onPress={() => navigation.navigate("Login")}>
+              <Text style={styles.loginText}>Login</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -141,6 +119,12 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     alignItems: 'center',
   },
+  resetTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.primary,
+    marginBottom: 20,
+  },
   logo: {
     resizeMode: 'contain',
     marginBottom: 50,
@@ -156,22 +140,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 20,
   },
-  passwordContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '80%',
-  },
-  passwordInput: {
-    flex: 1,
-    // marginRight: 10,
-  },
-  visibilityToggle: {
-    // position: 'relative',
-    position: 'absolute',
-    right: 10,
-    top: '40%',
-    transform: [{ translateY: -12 }],
-  },
   button: {
     backgroundColor: colors.primary,
     width: '70%',
@@ -186,18 +154,18 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
-  forgotPasswordContainer: {
+  backToLoginContainer: {
     marginTop: 20,
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'center',
   },
-  forgotPasswordText: {
+  backToLoginText: {
     color: 'gray',
     fontWeight: '600',
     fontSize: 14,
   },
-  resetText: {
+  loginText: {
     color: colors.primary,
     fontWeight: '600',
     fontSize: 14,

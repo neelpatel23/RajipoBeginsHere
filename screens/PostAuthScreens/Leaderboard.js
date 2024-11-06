@@ -45,19 +45,23 @@ const LeaderboardScreen = () => {
       const leaderboardDataPromises = users.map(async (user) => {
         const leaderboardDocRef = doc(database, 'leaderboard', user.uid);
         const leaderboardDocSnap = await getDoc(leaderboardDocRef);
-
+      
         if (leaderboardDocSnap.exists()) {
-          const { kirtans = 0, shloks = 0 } = leaderboardDocSnap.data();
-          return { ...user, kirtans, shloks };
+          const { kirtans = 0, shloks = 0, pbps = 0, swaminiVatos = 0, ahnicks = 0 } = leaderboardDocSnap.data();
+          return { ...user, kirtans, shloks, pbps, swaminiVatos, ahnicks };
         } else {
-          return { ...user, kirtans: 0, shloks: 0 };
+          return { ...user, kirtans: 0, shloks: 0, pbps: 0, swaminiVatos: 0, ahnicks: 0 };
         }
       });
+      
 
       const leaderboardData = await Promise.all(leaderboardDataPromises);
 
       // Sort the leaderboard data by the total number of memorized items (shloks + kirtans)
-      leaderboardData.sort((a, b) => (b.shloks + b.kirtans) - (a.shloks + a.kirtans));
+      leaderboardData.sort((a, b) => 
+        (b.shloks + b.kirtans + b.pbps + b.swaminiVatos + b.ahnicks) - 
+        (a.shloks + a.kirtans + a.pbps + a.swaminiVatos + a.ahnicks)
+      );      
 
       setLeaderboardData(leaderboardData);
     } catch (error) {
@@ -79,7 +83,7 @@ const LeaderboardScreen = () => {
 
   const renderItem = ({ item }) => {
     const isCurrentUser = item.uid === auth.currentUser.uid;
-
+  
     return (
       <Card style={[styles.card, isCurrentUser && styles.currentUserCard]}>
         <Card.Content>
@@ -90,12 +94,18 @@ const LeaderboardScreen = () => {
             <View style={styles.stats}>
               <Text style={styles.statText}>Shloks: {item.shloks}</Text>
               <Text style={styles.statText}>Kirtans: {item.kirtans}</Text>
+              <Text style={styles.statText}>PBPs: {item.pbps}</Text>
+              <Text style={styles.statText}>Swamini Vatos: {item.swaminiVatos}</Text>
+              {/* Fix: Use interpolation correctly for ahnicks */}
+              <Text style={styles.statText}>Ahniks: {item.ahnicks}</Text>
             </View>
           </View>
         </Card.Content>
       </Card>
     );
   };
+  
+  
 
   const renderScene = ({ route }) => {
     const filteredData = leaderboardData.filter(user => user.tier === route.key);
@@ -159,7 +169,7 @@ const styles = StyleSheet.create({
   },
   card: {
     marginVertical: 8,
-    backgroundColor: colors.cardBackground,
+    backgroundColor: colors.inactiveIcon,
     borderRadius: 10,
     padding: 15,
     margin: 10,
