@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useLayoutEffect } from 'react';
 import { StyleSheet, View, Text, SafeAreaView } from 'react-native';
-import { useNavigation } from "@react-navigation/native";
 import { TabView, TabBar } from 'react-native-tab-view';
 import colors from '../../globalVariables/colors';
 import SatsangDiksha from './SatsangDiksha';
@@ -9,15 +8,18 @@ import KirtansScreen from './Kirtans';
 import PBPScreen from './PBP';
 import SwaminiVatoScreen from './SwaminiVato';
 import AhnikScreen from './Ahnik';
+import NotesScreen from './Notes';
 
 const SwipeableMukhpathScreen = () => {
   const [index, setIndex] = useState(0);
   const [routes] = useState([
-    { key: 'mukhpath', title: 'Mukhpath' },
-    { key: 'pbp', title: 'PBP' },
-    { key: 'kirtans', title: 'Kirtans' },
-    { key: 'svato', title: 'Swami Ni Vato' },
     { key: 'ahnik', title: 'Ahnik' },
+    { key: 'mukhpath', title: 'Satsang Diksha' },
+    { key: 'kirtans', title: 'Kirtans' },
+    { key: 'pbp', title: 'PBP' },
+    { key: 'svato', title: 'Swami Ni Vato' },
+    { key: 'notes', title: 'Notes' },
+
   ]);
 
   const [stopAudioCallback, setStopAudioCallback] = useState(null);
@@ -42,6 +44,8 @@ const SwipeableMukhpathScreen = () => {
         return <SwaminiVatoScreen />
       case 'ahnik':
         return <AhnikScreen />
+      case 'notes':
+        return <NotesScreen />
       default:
         return null;
     }

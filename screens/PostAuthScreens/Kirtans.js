@@ -130,22 +130,27 @@ const KirtansScreen = () => {
   }, []);
 
   const toggleCompletionStatus = async (kirtanId, requireAccessCode = false) => {
-    if (requireAccessCode && accessCodeInput !== ACCESS_CODE) {
+    const validAccessCodes = ['1933', '1907', '2017', '2023', '2014', '2004']; // Your access codes
+  
+    // Show the modal if access code is required but not yet entered
+    if (requireAccessCode && !validAccessCodes.includes(accessCodeInput)) {
       setSelectedKirtanId(kirtanId);
-      setIsAccessCodeModalVisible(true);
+      setIsAccessCodeModalVisible(true); // Open the modal
       return;
     }
-
+  
     const isCompleted = !!completionStatuses[`kirtan${kirtanId}`];
     const newStatus = !isCompleted;
-
-    setCompletionStatuses(prevStatuses => ({
+  
+    setCompletionStatuses((prevStatuses) => ({
       ...prevStatuses,
       [`kirtan${kirtanId}`]: newStatus,
     }));
-
-    await updateLeaderboard(newStatus ? 1 : -1);
-
+  
+    // Update leaderboard
+    await updateLeaderboard(newStatus ? 5 : -5);
+  
+    // Update Firestore
     const userDocRef = doc(database, 'userMukhpathsKirtans', auth.currentUser.email);
     const userDocSnap = await getDoc(userDocRef);
     if (userDocSnap.exists()) {
@@ -154,6 +159,8 @@ const KirtansScreen = () => {
       await setDoc(userDocRef, { [`kirtan${kirtanId}`]: newStatus });
     }
   };
+  
+  
 
   const addNewKirtan = async () => {
     if (!newKirtanName || !newKirtanEnglishText || !newKirtanEnglishDefinition) {
@@ -395,15 +402,17 @@ const KirtansScreen = () => {
             />
             <Button
               title="Submit"
-              textColor='white'
+              textColor="white"
               style={styles.submitButton}
               onPress={() => {
-                if (accessCodeInput === ACCESS_CODE) {
-                  toggleCompletionStatus(selectedKirtanId);
-                  setIsAccessCodeModalVisible(false);
-                  setAccessCodeInput('');
+                const validAccessCodes = ['1933', '1907', '2017', '2023', '2014', '2004']; // Valid codes
+
+                if (validAccessCodes.includes(accessCodeInput)) {
+                  toggleCompletionStatus(selectedKirtanId); // Call with the selected ID
+                  setIsAccessCodeModalVisible(false); // Close the modal
+                  setAccessCodeInput(''); // Clear the input
                 } else {
-                  alert("Incorrect access code.");
+                  alert("Incorrect access code."); // Show error
                 }
               }}
             >

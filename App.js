@@ -18,6 +18,7 @@ import AddContent from './screens/PostAuthScreens/AddContent';
 import Settings from './screens/PostAuthScreens/Settings';
 import TeamStandingsScreen from './screens/PostAuthScreens/TeamStandings';
 import ResetPassword from './screens/PreAuthScreens/Reset';
+import AnnouncementsScreen from './screens/PostAuthScreens/Announcements';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -85,12 +86,13 @@ function MainStack() {
             iconName = 'list-circle-outline';
           } else if (route.name === 'Leaderboard') {
             iconName = 'analytics-outline';
-          } else if (route.name === 'Team Standings') {
+          } else if (route.name === 'Standings') {
             iconName = 'bar-chart-outline';
           } else if (route.name == 'Settings') {
             iconName = 'settings-outline'
+          } else if (route.name == 'Announcements') {
+            iconName = 'megaphone-outline'
           }
-
           return <Ionicons name={iconName} size={size} color={color} />;
         },
       })}
@@ -122,7 +124,20 @@ function MainStack() {
         }}  
       />
       <Tab.Screen 
-        name="Team Standings" 
+        name="Announcements" 
+        component={AnnouncementsScreen}
+        options={{ 
+          tabBarShowLabel: true,
+          headerShown: false,
+          headerStyle: {
+            backgroundColor: colors.darkBackground, // Dark header background
+            borderBottomWidth: 1,
+            borderBottomColor: '#444444', // Darker border for header
+          } 
+        }}  
+      />
+      <Tab.Screen 
+        name="Standings" 
         component={TeamStandingsScreen}
         options={{ 
           tabBarShowLabel: true,

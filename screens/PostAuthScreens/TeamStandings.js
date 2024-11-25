@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,146 +9,162 @@ import {
   SafeAreaView
 } from 'react-native';
 import { Card } from 'react-native-paper';
-import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
-import { database, auth } from '../../config/firebase';
-import colors from '../../globalVariables/colors';
 import { TabView, TabBar } from 'react-native-tab-view';
+import { database, auth } from '../../config/firebase';
+import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import colors from '../../globalVariables/colors';
+
+const TEAM_NAMES = [
+  "Good Mukhpath Bhaiya",
+  "Dwij's Dweebs",
+  "The Last Chairbenders",
+  "Dev's D Line",
+  "Mukhpath Sharp Shooters",
+  "Reserve Officers' Training Corps (ROTC)",
+  "Young Yogis",
+  "Meets Meet Neels",
+  "Team Prapti",
+  "Skimmed",
+  "AP MW",
+  "Swami's Lions",
+  "Big Bodies",
+  "Epic Failures",
+  "Keshav's Kachoris",
+  "Flaming Pandas",
+  "Urmil's Umbrellas",
+  "Manit's Mohanthals",
+];
 
 const TeamStandingsScreen = () => {
-  const [teams, setTeams] = useState([]); // Holds the list of team names and their users
+  const [users, setUsers] = useState([]);
   const [leaderboardData, setLeaderboardData] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [index, setIndex] = useState(0); // For TabView
-  const [routes, setRoutes] = useState([]); // For dynamically creating tabs
+  const [index, setIndex] = useState(0);
 
-  // Fetch users and group them by their teams
-  const fetchTeamData = async () => {
+  const routes = TEAM_NAMES.map((team) => ({ key: team, title: team }));
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
     try {
       setIsLoading(true);
+  
+      // Fetch user data
       const userCollection = collection(database, 'userData');
       const userDocsSnap = await getDocs(userCollection);
-
-      const teams = {}; // Object to hold teams and their users
-
-      userDocsSnap.forEach(doc => {
-        const { firstName, team } = doc.data(); // Fetch user's firstName and team
-        const user = {
-          uid: doc.id, 
-          firstName, 
-          team
-        };
-        // Add users to the correct team
-        if (!teams[team]) {
-          teams[team] = []; // Initialize the team if not already present
-        }
-        teams[team].push(user); // Add user to the team
+      const userList = [];
+      userDocsSnap.forEach((doc) => {
+        const { firstName, team } = doc.data();
+        userList.push({ uid: doc.id, firstName, team });
       });
-
-      // Set team routes dynamically for the tabs
-      const routes = Object.keys(teams).map((teamName, idx) => ({
-        key: teamName, title: teamName
-      }));
-      setRoutes(routes);
-      setTeams(teams); // Store the grouped team data
+      setUsers(userList);
+  
+      // Fetch leaderboard data
+      const leaderboardPromises = userList.map(async (user) => {
+        const leaderboardDocRef = doc(database, 'leaderboard', user.uid);
+        const leaderboardDocSnap = await getDoc(leaderboardDocRef);
+        if (leaderboardDocSnap.exists()) {
+          const data = leaderboardDocSnap.data();
+          const totalScore =
+            (data.shloks || 0) +
+            (data.kirtans || 0) +
+            (data.pbps || 0) +
+            (data.swaminiVatos || 0) +
+            (data.ahnicks || 0);
+          return { ...user, ...data, totalScore };
+        }
+        return { ...user, kirtans: 0, shloks: 0, pbps: 0, ahnicks: 0, swaminiVatos: 0, totalScore: 0 };
+      });
+  
+      const leaderboard = await Promise.all(leaderboardPromises);
+  
+      // Group leaderboard data by teams and calculate team total scores
+      const groupedData = TEAM_NAMES.reduce((acc, team) => {
+        const teamUsers = leaderboard.filter((user) => user.team === team);
+        const teamTotalScore = teamUsers.reduce((sum, user) => sum + user.totalScore, 0);
+        acc[team] = { users: teamUsers, teamTotalScore };
+        return acc;
+      }, {});
+  
+      setLeaderboardData(groupedData);
     } catch (error) {
-      console.error('Error fetching team data:', error);
+      console.error('Error fetching data:', error);
     } finally {
       setIsLoading(false);
       setRefreshing(false);
     }
   };
-
-  // Fetch leaderboard data for each user, including shloks, kirtans, pbps, ahnicks, and swamini vatos
-  const fetchLeaderboardData = async (users) => {
-    try {
-      const leaderboardDataPromises = users.map(async (user) => {
-        const leaderboardDocRef = doc(database, 'leaderboard', user.uid);
-        const leaderboardDocSnap = await getDoc(leaderboardDocRef);
-
-        if (leaderboardDocSnap.exists()) {
-          const { 
-            kirtans = 0, 
-            shloks = 0, 
-            pbps = 0, 
-            ahnicks = 0, 
-            swaminiVatos = 0 
-          } = leaderboardDocSnap.data();
-          return { ...user, kirtans, shloks, pbps, ahnicks, swaminiVatos };
-        } else {
-          return { ...user, kirtans: 0, shloks: 0, pbps: 0, ahnicks: 0, swaminiVatos: 0 };
-        }
-      });
-
-      return await Promise.all(leaderboardDataPromises);
-    } catch (error) {
-      console.error('Error fetching leaderboard data:', error);
-      return [];
-    }
-  };
-
+  
   const onRefresh = () => {
     setRefreshing(true);
-    fetchTeamData();
+    fetchData();
   };
 
-  useEffect(() => {
-    fetchTeamData();
-  }, []);
+  // const totalScore = item.shloks + item.kirtans + item.pbps + item.swaminiVatos + item.ahnicks;
 
-  // Render each team member's card with stats
-  const renderItem = ({ item }) => {
-    const isCurrentUser = item.uid === auth.currentUser.uid;
 
-    return (
-      <Card style={[styles.card, isCurrentUser && styles.currentUserCard]}>
-        <Card.Content>
-          <View style={styles.cardContent}>
-            <Text style={[styles.name, isCurrentUser && styles.currentUserName]}>
-              {item.firstName}
-            </Text>
-            <View style={styles.stats}>
-              <Text style={styles.statText}>Shloks: {item.shloks}</Text>
-              <Text style={styles.statText}>Kirtans: {item.kirtans}</Text>
-              <Text style={styles.statText}>PBPs: {item.pbps}</Text>
-              <Text style={styles.statText}>Ahniks: {item.ahnicks}</Text>
-              <Text style={styles.statText}>Swamini Vatos: {item.swaminiVatos}</Text>
-            </View>
+  const MemorizedCard = memo(({ item, isCurrentUser }) => (
+    <Card style={[styles.card, isCurrentUser && styles.currentUserCard]}>
+      <Card.Content>
+        <View style={styles.cardContent}>
+          <Text style={[styles.name, isCurrentUser && styles.currentUserName]}>
+            {item.firstName}
+          </Text>
+          <View style={styles.stats}>
+            <Text style={styles.statText}>Shloks: {item.shloks}</Text>
+            <Text style={styles.statText}>Kirtans: {item.kirtans}</Text>
+            <Text style={styles.statText}>PBPs: {item.pbps}</Text>
+            <Text style={styles.statText}>Ahniks: {item.ahnicks}</Text>
+            <Text style={styles.statText}>Swamini Vatos: {item.swaminiVatos}</Text>
+            <Text style={styles.teamScore}>Total Score: {item.totalScore}</Text>
           </View>
-        </Card.Content>
-      </Card>
-    );
+        </View>
+      </Card.Content>
+    </Card>
+  ));
+  
+
+  
+
+  const renderItem = ({ item }) => {
+    const isCurrentUser = item.uid === auth.currentUser?.uid;
+    return <MemorizedCard item={item} isCurrentUser={isCurrentUser} />;
   };
 
-  // Render the team view in each tab
   const renderScene = ({ route }) => {
-    const teamUsers = teams[route.key] || [];
-
-    // Fetch leaderboard data for the selected team
-    if (!leaderboardData[route.key]) {
-      fetchLeaderboardData(teamUsers).then((data) => {
-        setLeaderboardData((prevData) => ({ ...prevData, [route.key]: data }));
-      });
-      return <ActivityIndicator size="large" color={colors.primary} />;
-    }
-
+    const teamData = leaderboardData[route.key] || { users: [], teamTotalScore: 0 };
+    const teamUsers = teamData.users;
+    const teamTotalScore = teamData.teamTotalScore;
+  
     return (
-      <FlatList
-        data={leaderboardData[route.key]} // Use the leaderboard data for this team
-        renderItem={renderItem}
-        keyExtractor={(item) => item.uid}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            progressBackgroundColor={colors.darkBackground}
-            colors={[colors.primary]}
-            tintColor={colors.primary}
-          />
-        }
-      />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.teamScore}>
+          Total Team Score: {teamTotalScore}
+        </Text>
+        <FlatList
+          data={teamUsers}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.uid}
+          initialNumToRender={5} // Render only 5 items initially
+          maxToRenderPerBatch={10} // Render 10 items at a time
+          windowSize={5} // Load 5 screens worth of items
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              progressBackgroundColor={colors.darkBackground}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
+        />
+      </View>
     );
   };
+  
 
   if (isLoading) {
     return (
@@ -166,11 +182,11 @@ const TeamStandingsScreen = () => {
         onIndexChange={setIndex}
         initialLayout={{ width: '100%' }}
         renderTabBar={(props) => (
-          <TabBar 
+          <TabBar
             {...props}
             style={styles.tabBar}
-            scrollEnabled={true}
-            renderLabel={({ route, focused, color }) => (
+            scrollEnabled
+            renderLabel={({ route, focused }) => (
               <Text style={{ color: focused ? colors.primary : colors.inactiveIcon, fontSize: 16 }}>
                 {route.title}
               </Text>
@@ -184,11 +200,6 @@ const TeamStandingsScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.darkBackground,
-    padding: 10,
-  },
   card: {
     marginVertical: 8,
     backgroundColor: colors.inactiveIcon,
@@ -215,6 +226,13 @@ const styles = StyleSheet.create({
   currentUserName: {
     color: '#56E364',
   },
+  teamScore: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginVertical: 10,
+    color: colors.primary,
+  },
   stats: {
     flexDirection: 'column',
   },
@@ -230,8 +248,6 @@ const styles = StyleSheet.create({
   tabBar: {
     backgroundColor: colors.darkBackground,
     elevation: 0,
-    paddingBottom: 0,
-    marginBottom: 0,
   },
   tabIndicator: {
     backgroundColor: colors.primary,
@@ -240,3 +256,4 @@ const styles = StyleSheet.create({
 });
 
 export default TeamStandingsScreen;
+

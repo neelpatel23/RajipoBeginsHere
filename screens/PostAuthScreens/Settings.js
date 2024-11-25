@@ -80,6 +80,7 @@ const Settings = ({ navigation }) => {
             <UserInfoCard title="Center" detail={userData.center || 'Not available'} />
             <UserInfoCard title="Role" detail={userData.role || 'Not available'} />
             <UserInfoCard title="Tier" detail={userData.tier || 'Not available'} />
+            <UserInfoCard title="Team" detail={userData.team || 'Not Available'} />
 
             <Card style={styles.notificationCard}>
             <Card.Content>

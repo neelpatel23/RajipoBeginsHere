@@ -20,9 +20,11 @@ const LeaderboardScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [index, setIndex] = useState(0);
   const [routes] = useState([
-    { key: 'Mahant', title: 'Mahant' },
-    { key: 'Pramukh', title: 'Pramukh' },
+    { key: 'All', title: 'All' },
+    { key: 'Shāstriji', title: 'Shāstriji' },
     { key: 'Yogi', title: 'Yogi' },
+    { key: 'Pramukh', title: 'Pramukh' },
+    { key: 'Mahant', title: 'Mahant' },
   ]);
 
   const fetchUserData = async () => {
@@ -84,6 +86,9 @@ const LeaderboardScreen = () => {
   const renderItem = ({ item }) => {
     const isCurrentUser = item.uid === auth.currentUser.uid;
   
+    // Calculate the total score for this specific user
+    const totalScore = item.shloks + item.kirtans + item.pbps + item.swaminiVatos + item.ahnicks;
+
     return (
       <Card style={[styles.card, isCurrentUser && styles.currentUserCard]}>
         <Card.Content>
@@ -96,8 +101,8 @@ const LeaderboardScreen = () => {
               <Text style={styles.statText}>Kirtans: {item.kirtans}</Text>
               <Text style={styles.statText}>PBPs: {item.pbps}</Text>
               <Text style={styles.statText}>Swamini Vatos: {item.swaminiVatos}</Text>
-              {/* Fix: Use interpolation correctly for ahnicks */}
               <Text style={styles.statText}>Ahniks: {item.ahnicks}</Text>
+              <Text style={styles.statText1}>Total Points: {totalScore}</Text>
             </View>
           </View>
         </Card.Content>
@@ -106,7 +111,6 @@ const LeaderboardScreen = () => {
   };
   
   
-
   const renderScene = ({ route }) => {
     const filteredData = leaderboardData.filter(user => user.tier === route.key);
 
@@ -197,8 +201,13 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   statText: {
-    fontSize: 16,
+    fontSize: 14,
     color: colors.lightText,
+  },
+  statText1: {
+    marginTop: 3,
+    fontSize: 20,
+    color: colors.lightText
   },
   centered: {
     flex: 1,
